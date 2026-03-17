@@ -1,0 +1,42 @@
+<launch>    
+    <set_env name="GZ_SIM_RENDER_ENGINE" value="ogre2"/>
+    <set_env name="MESA_GL_VERSION_OVERRIDE" value="4.5"/>
+    <set_env name="__GLX_VENDOR_LIBRARY_NAME" value="mesa"/>
+    <set_env name="LIBGL_DRI3_DISABLE" value="1"/>
+
+    <let name="urdf_path" value="$(find-pkg-share explore_robot_pkg)/urdf/explore_robot.urdf.xacro"/>
+    <let name="rviz_config_path" value="$(find-pkg-share explore_robot_pkg)/rviz/rviz_config.rviz"/>
+    <let name="gazebo_bridge_config_path" value="$(find-pkg-share explore_robot_pkg)/config/gazebo_bridge.yaml"/>
+
+    <node pkg="robot_state_publisher" exec="robot_state_publisher">
+        <param name="use_sim_time" value="true"/>
+        <param name="robot_description" value="$(command 'xacro $(var urdf_path)')"/>
+    </node>
+
+    <include file="$(find-pkg-share ros_gz_sim)/launch/gz_sim.launch.py">
+        <arg name="gz_args" value="-s -r $(find-pkg-share explore_robot_pkg)/worlds/test_world.sdf"/>
+    </include>
+
+    <node pkg="ros_gz_sim" exec="create" 
+          args="-topic robot_description -name my_robot" output="screen"/>
+
+    <node pkg="ros_gz_bridge" exec="parameter_bridge">
+        <param name="config_file" value="$(var gazebo_bridge_config_path)"/>
+    </node>
+
+    <node pkg="pointcloud_to_laserscan" exec="pointcloud_to_laserscan_node">
+        <param name="target_frame" value="laser_link"/>
+        <param name="transform_tolerance" value="0.01"/>
+        <param name="min_height" value="-0.5"/>
+        <param name="max_height" value="1.0"/>
+        <param name="range_min" value="0.12"/>
+        <param name="range_max" value="10.0"/>
+        <remap from="cloud_in" to="/depth/points"/>
+        <remap from="scan" to="/scan"/>
+    </node>
+
+    <node pkg="tf2_ros" exec="static_transform_publisher"
+      args="0 0 0 0 0 0 laser_link my_robot/laser_link/depth_camera"/>
+      
+    <node pkg="rviz2" exec="rviz2" output="screen" args="-d $(var rviz_config_path)"/>
+</launch>
